@@ -1,0 +1,25 @@
+identifier: ccb
+name: ccb
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+ram: 272
+flash: 512
+supported:
+  - gpio
+  - backup_sram
+  - can
+  - gpio
+  - uart
+  - entropy
+  - adc
+  - dac
+  - pwm
+  - netif:eth
+  - counter
+  - spi
+  - usb_device
+  - rtc
+  - i2c
+vendor: st
