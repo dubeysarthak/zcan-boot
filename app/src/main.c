@@ -26,12 +26,12 @@ const struct device* flash_dev = DEVICE_DT_GET(FLASH_DEVICE_NODE);
 struct tc_sha256_state_struct sha_ctx;
 struct tc_sha256_state_struct new_firm;
 
-struct fl_data {
+typedef struct fl_data {
     uint8_t hashA[2][32];
     uint8_t versionA[2][3];
     int size_in_sectors[2];
     bool is_update_req;
-};
+}fl_data_t;
 
 typedef enum DfuState {
     DfuStateWaitForHashData = 0,
@@ -40,9 +40,9 @@ typedef enum DfuState {
     DfuStateWaitForCheckHashCmd,
     DfuStatesJumpToApp,
     DfuStateWaiting,
-} DfuState;
+} DfuState_e;
 
-struct fl_data fl_data = {
+fl_data_t fl_data = {
     .hashA = {{0}},
     .versionA = {{0}},
     .size_in_sectors = {0},
@@ -197,7 +197,7 @@ static inline int find_latest_version(struct fl_data* version) {
 
 FuncStatus poll_data() {
     FuncStatus fs = FuncStatusNotReady;
-    static DfuState state = DfuStateWaitForHashData;
+    static DfuState_e state = DfuStateWaitForHashData;
     struct frame_packed packed_frame = {0};
     fs = k_msgq_get(&can_receive_q, &packed_frame, K_FOREVER);
     if (fs != FuncStatusOk) {
