@@ -1,5 +1,0 @@
-board:
-  name: nucleo
-  vendor: st
-  socs:
-    - name: stm32h533xx
