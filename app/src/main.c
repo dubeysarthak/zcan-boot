@@ -1,3 +1,12 @@
+/**
+ * @file main.c
+ * @author Sarthak Et (et-sarthak)
+ * @brief Custom bootloader implementation for firmware updates over CAN bus
+ * @version 1.0
+ * @date 2024-10-05
+ * 
+ */
+
 #include <string.h>
 #include <zephyr/drivers/flash.h>
 #include <zephyr/kernel.h>
@@ -57,21 +66,36 @@ uint32_t app_slot_addr[2] = {FL_APP_SLOT_ONE_ADDR, FL_APP_SLOT_TWO_ADDR};
 
 /*-------------------------------LOCAL API----------------------------------*/
 
-int flash_read_data(uint32_t addr, uint32_t* data, uint32_t size) {
+/**
+ * @brief           Read data from flash memory
+ * @param addr      flash address to read from
+ * @param data      pointer to data buffer to store read data
+ * @param size      size of data to read in bytes
+ * @return          report error in case of failure
+ */
+
+ FuncStatus flash_read_data(uint32_t addr, uint32_t* data, uint32_t size) {
     if (addr % FL_UNIT_ADDR != 0) {
         LOG_ERR("Address or size not aligned to FLASH_UNIT_ADDR (%d)\n", FL_UNIT_ADDR);
-        return -EINVAL;
+        return FuncStatusInvalidArgument;
     }
     for (uint32_t i = 0; i < size; i += FL_UNIT_ADDR) {
         int rc = flash_read(flash_dev, addr + i, (uint8_t*)data + i, FL_UNIT_ADDR);
         if (rc != 0) {
             LOG_ERR("Flash read failed (rc=%d)\n", rc);
-            return rc;
+            return FuncStatusError;
         }
     }
-    return 0;
+    return FuncStatusOk;
 }
 
+/**
+ * @brief           Write data to flash memory (sector erase before write)
+ * @param addr      flash address to read from
+ * @param data      pointer to data buffer to store read data
+ * @param size      size of data to read in bytes
+ * @return          report error in case of failure
+ */
 FuncStatus flash_write_sector(uint32_t addr, const uint32_t* data, uint32_t size) {
     if (addr % FL_UNIT_ADDR != 0) {
         LOG_ERR("Address or size not aligned to FLASH_UNIT_ADDR (%d)\n", FL_UNIT_ADDR);
@@ -92,6 +116,13 @@ FuncStatus flash_write_sector(uint32_t addr, const uint32_t* data, uint32_t size
     return FuncStatusOk;
 }
 
+
+/**
+ * @brief            Store incoming hash data
+ * @param data       Pointer to incoming data
+ * @return           FuncStatus indicating the status of the operation
+ */
+
 FuncStatus store_hash(uint8_t* data) {
     if (cnt == 32) {
         slot_index = data[0];
@@ -109,7 +140,11 @@ FuncStatus store_hash(uint8_t* data) {
         return FuncStatusInProcess;
     }
 }
-
+/**
+ * @brief             Store incoming flash data into a local buffer
+ * @param data        Pointer to incoming data
+ * @return            FuncStatus indicating the status of the operation
+ */
 FuncStatus store_flash(uint8_t* data) {
     if (cnt < (FL_SECTOR_SIZE / 4)) {
         memcpy(&sector_data[cnt], data, sizeof(uint64_t));
@@ -124,6 +159,12 @@ FuncStatus store_flash(uint8_t* data) {
     }
     return FuncStatusError;
 }
+
+/**
+ * @brief               Update flash memory with data from the local buffer
+ * @param slot_index    Index of the application slot to update
+ * @return              FuncStatus indicating the status of the operation
+ */
 
 FuncStatus update_flash(uint8_t slot_index) {
     cnt = 0;
@@ -144,6 +185,10 @@ FuncStatus update_flash(uint8_t slot_index) {
     return FuncStatusError;
 }
 
+/**
+ * @brief               Check if the computed hash matches the expected hash
+ * @return              FuncStatus indicating whether the hashes match
+ */
 FuncStatus check_hash() {
     tc_sha256_final(output_hash, &new_firm);
     for (int i = 0; i < sizeof(output_hash); i++) {
@@ -154,6 +199,10 @@ FuncStatus check_hash() {
     return FuncStatusError;
 }
 
+/**
+ * @brief               Jump to the application code in the specified slot
+ * @param slot_index    Index of the application slot to jump to
+ */
 void jump_to_app(uint8_t slot_index) {
     LOG_INF("app_slot %x", app_slot_addr[slot_index]);
     void (*app_reset_handler)();
@@ -179,6 +228,11 @@ void jump_to_app(uint8_t slot_index) {
     app_reset_handler();
 }
 
+/**
+ * @brief               Find the latest valid firmware version
+ * @param version       Pointer to the fl_data structure containing version information
+ * @return              Index of the latest valid version (0 or 1), or -1 if both are invalid
+ */
 static inline int find_latest_version(struct fl_data* version) {
     int versionA_val =
         (version->versionA[0][0] << 16) | (version->versionA[0][1] << 8) | version->versionA[0][2];
@@ -195,6 +249,10 @@ static inline int find_latest_version(struct fl_data* version) {
 
 /*-----------------------------DFU STATE_MACHINE--------------------------------*/
 
+/**
+ * @brief               Poll for incoming data and manage the DFU state machine
+ * @return              FuncStatus indicating the status of the operation
+ */
 FuncStatus poll_data() {
     FuncStatus fs = FuncStatusNotReady;
     static DfuState_e state = DfuStateWaitForHashData;
@@ -279,6 +337,9 @@ FuncStatus poll_data() {
 
 /*-----------------------------MAIN THREAD--------------------------------*/
 
+/**
+ * @brief Main function to initialize the bootloader and manage firmware updates
+ */
 int main() {
     int version_idx = 0;
     static uint32_t fl_read_arr[FL_SECTOR_SIZE / 4] = {0};
